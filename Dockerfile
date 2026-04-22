@@ -1,16 +1,17 @@
 FROM eclipse-temurin:17-jdk
 
-RUN apt-get update && apt-get install -y g++
+RUN apt-get update && apt-get install -y g++ && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
+
 COPY . .
 
-# Compile C++ into a shared library
+ENV JAVA_HOME=/opt/java/openjdk
+
 RUN g++ -shared -fPIC -o libcardpicker.so cardpicker.cpp \
-    -I$(find /usr/lib/jvm -name "jni.h" | head -1 | xargs dirname) \
-    -I$(find /usr/lib/jvm -name "jni_md.h" | head -1 | xargs dirname)
+    -I$JAVA_HOME/include \
+    -I$JAVA_HOME/include/linux
 
-# Compile Java
-RUN javac TarotServer.java CardFetcher.java CardPickerNative.java
+RUN javac *.java
 
-CMD ["java", "-Djava.library.path=.", "-cp", ".", "TarotServer"]
+CMD ["java", "TarotServer"]
