@@ -12,21 +12,27 @@
     button:disabled { opacity: 0.6; cursor: wait; }
     .error { color: red; margin: 12px 0; }
 
+    /* Cards */
+    #spread { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; margin-top: 24px; }
+    .card { background: white; border: 1px solid #dbe5f0; border-radius: 16px; padding: 20px; max-width: 220px; text-align: left; }
+    .pos { font-size: 0.75rem; font-weight: bold; text-transform: uppercase; color: #e46f42; }
+    .name { font-size: 1.1rem; font-weight: bold; margin: 6px 0 4px; }
+    .orient { color: #888; font-size: 0.85rem; margin-bottom: 8px; }
+
     /* Diagram */
-    .diagram { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; margin: 24px auto; max-width: 900px; }
-    .box { background: #e6f1fb; border: 2px solid #185fa5; border-radius: 14px; width: 130px; padding: 14px 8px; transition: background 0.3s, border-color 0.3s; }
+    .diagram { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; margin: 32px auto; max-width: 860px; }
+    .box { background: #e6f1fb; border: 2px solid #185fa5; border-radius: 14px; width: 140px; padding: 16px 8px; transition: background 0.3s, border-color 0.3s; }
     .box.active { background: #fff0ea; border-color: #e46f42; }
-    .box-label { font-size: 0.75rem; font-weight: bold; color: #185fa5; text-transform: uppercase; }
+    .box-label { font-size: 0.78rem; font-weight: bold; color: #185fa5; text-transform: uppercase; }
     .box.active .box-label { color: #e46f42; }
     .box-sub { font-size: 0.68rem; color: #60708a; margin-top: 4px; }
-    .arrows { display: flex; flex-direction: column; align-items: center; padding: 0 4px; gap: 4px; }
-    .req, .res { font-size: 0.65rem; font-weight: bold; transition: opacity 0.3s; }
-    .req { color: #185fa5; }
-    .res { color: #e46f42; opacity: 0.3; }
-    .res.active { opacity: 1; }
+    .arrows { display: flex; flex-direction: column; align-items: center; padding: 0 6px; gap: 4px; }
+    .req { font-size: 0.65rem; font-weight: bold; color: #185fa5; }
+    .res { font-size: 0.65rem; font-weight: bold; color: #e46f42; opacity: 0.3; transition: opacity 0.3s; }
+    .res.on { opacity: 1; }
 
     /* Log */
-    .log-wrap { background: #1a1a2e; border-radius: 12px; padding: 14px 18px; margin: 20px auto; max-width: 620px; text-align: left; font-family: 'Courier New', monospace; font-size: 0.78rem; line-height: 1.8; min-height: 60px; }
+    .log-wrap { background: #1a1a2e; border-radius: 12px; padding: 14px 18px; margin: 24px auto; max-width: 620px; text-align: left; font-family: 'Courier New', monospace; font-size: 0.78rem; line-height: 1.8; min-height: 60px; }
     .log-wrap span { display: block; color: #8892a4; }
     .log-wrap span.done { color: #5dcaa5; }
     .log-wrap span.active { color: #ffffff; }
@@ -34,13 +40,6 @@
     .log-wrap span::before { content: '▸ '; }
     .log-wrap span.done::before { content: '✓ '; }
     .log-wrap span.err::before { content: '✗ '; }
-
-    /* Cards */
-    #spread { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; margin-top: 24px; }
-    .card { background: white; border: 1px solid #dbe5f0; border-radius: 16px; padding: 20px; max-width: 220px; text-align: left; }
-    .pos { font-size: 0.75rem; font-weight: bold; text-transform: uppercase; color: #e46f42; }
-    .name { font-size: 1.1rem; font-weight: bold; margin: 6px 0 4px; }
-    .orient { color: #888; font-size: 0.85rem; margin-bottom: 8px; }
   </style>
 </head>
 <body>
@@ -52,7 +51,7 @@
 
   <div id="spread"></div>
 
-  <!-- Diagram -->
+  <!-- Diagram — always visible -->
   <div class="diagram">
     <div class="box" id="box-client">
       <div class="box-label">Client</div>
@@ -67,12 +66,12 @@
       <div class="box-sub">TarotServer.java<br>HttpServer</div>
     </div>
     <div class="arrows">
-      <div class="req">&#8594; JNI call</div>
-      <div class="res" id="res2">&#8592; int[3]</div>
+      <div class="req">&#8594; GET /pick</div>
+      <div class="res" id="res2">&#8592; JSON picks</div>
     </div>
     <div class="box" id="box-cpp">
-      <div class="box-label">C++ Library</div>
-      <div class="box-sub">cardpicker.cpp<br>random shuffle</div>
+      <div class="box-label">C++ Server</div>
+      <div class="box-sub">cardpicker.cpp<br>HTTP server</div>
     </div>
     <div class="arrows">
       <div class="req">&#8594; HTTP GET</div>
@@ -84,120 +83,86 @@
     </div>
   </div>
 
-  <!-- Live log -->
+  <!-- Request log -->
   <div class="log-wrap" id="log">
     <span>Waiting for Draw Cards click...</span>
   </div>
 
   <script>
-    const boxes = {
-      client: document.getElementById("box-client"),
-      java:   document.getElementById("box-java"),
-      cpp:    document.getElementById("box-cpp"),
-      api:    document.getElementById("box-api"),
-    };
-    const responses = [
-      document.getElementById("res1"),
-      document.getElementById("res2"),
-      document.getElementById("res3"),
-    ];
-
+    const allBoxes = ['client','java','cpp','api'];
     function setActive(id) {
-      Object.values(boxes).forEach(b => b.classList.remove("active"));
-      if (id) boxes[id].classList.add("active");
+      allBoxes.forEach(b => document.getElementById('box-' + b).classList.remove('active'));
+      if (id) document.getElementById('box-' + id).classList.add('active');
+    }
+    function showRes(id) {
+      document.getElementById(id).classList.add('on');
     }
 
-    function showRes(index) {
-      responses[index].classList.add("active");
-    }
-
-    let logLines = [];
+    let lines = [];
     function log(text, cls) {
-      logLines.push({ text, cls });
-      document.getElementById("log").innerHTML =
-        logLines.map(l => `<span class="${l.cls}">${l.text}</span>`).join("");
+      lines.push({ text, cls });
+      document.getElementById('log').innerHTML =
+        lines.map(l => `<span class="${l.cls}">${l.text}</span>`).join('');
     }
-
-    function markDone(index) {
-      logLines[index].cls = "done";
-      document.getElementById("log").innerHTML =
-        logLines.map(l => `<span class="${l.cls}">${l.text}</span>`).join("");
+    function markDone(i) {
+      lines[i].cls = 'done';
+      document.getElementById('log').innerHTML =
+        lines.map(l => `<span class="${l.cls}">${l.text}</span>`).join('');
     }
-
     function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
     async function draw() {
-      const btn = document.getElementById("btn");
+      const btn = document.getElementById('btn');
       btn.disabled = true;
-      document.getElementById("error").textContent = "";
-      document.getElementById("spread").innerHTML = "";
-      logLines = [];
-      responses.forEach(r => r.classList.remove("active"));
-      Object.values(boxes).forEach(b => b.classList.remove("active"));
+      document.getElementById('error').textContent = '';
+      document.getElementById('spread').innerHTML = '';
+      lines = [];
+      ['res1','res2','res3'].forEach(id => document.getElementById(id).classList.remove('on'));
+      allBoxes.forEach(b => document.getElementById('box-' + b).classList.remove('active'));
 
-      // Step 1 — client sends request
-      setActive("client");
-      log("Browser sends fetch('/draw') to Java server...", "active");
+      setActive('client');
+      log('Browser sends GET /draw to Java server...', 'active');
       await sleep(600);
 
-      // Step 2 — java receives
-      markDone(0);
-      setActive("java");
-      log("Java HttpServer receives GET /draw...", "active");
+      markDone(0); setActive('java');
+      log('Java server receives request, calls C++ server GET /pick...', 'active');
       await sleep(600);
 
-      // Step 3 — java calls external API
-      setActive("api");
-      log("Java calls tarotapi.dev via HttpURLConnection...", "active");
+      markDone(1); setActive('cpp');
+      log('C++ server picks 3 random card indices, returns JSON...', 'active');
       await sleep(600);
+
+      markDone(2); showRes('res2'); setActive('java');
+      log('Java receives picks from C++, calls tarotapi.dev...', 'active');
+      await sleep(600);
+
+      markDone(3); setActive('api');
+      log('tarotapi.dev returns 78 cards as JSON...', 'active');
 
       try {
-        const res = await fetch("/draw");
+        const res = await fetch('/draw');
         const data = await res.json();
         if (data.error) throw new Error(data.error);
 
-        // Step 4 — API responds
-        markDone(logLines.length - 1);
-        showRes(2);
-        log("Tarot API returns 78 cards as JSON...", "active");
+        await sleep(400);
+        markDone(4); showRes('res3'); setActive('java');
+        log('Java builds the spread and sends JSON to browser...', 'active');
         await sleep(600);
 
-        // Step 5 — C++ picks cards
-        markDone(logLines.length - 1);
-        setActive("cpp");
-        log("Java calls C++ via JNI — cardpicker picks 3 indices...", "active");
-        await sleep(600);
+        markDone(5); showRes('res1'); setActive('client');
+        log('Browser renders the 3 cards!', 'done');
 
-        // Step 6 — C++ returns
-        markDone(logLines.length - 1);
-        showRes(1);
-        log("C++ returns int[3] to Java...", "active");
-        await sleep(600);
-
-        // Step 7 — Java sends JSON back
-        markDone(logLines.length - 1);
-        setActive("java");
-        log("Java builds JSON spread and sends response...", "active");
-        await sleep(600);
-
-        // Step 8 — done
-        markDone(logLines.length - 1);
-        setActive("client");
-        showRes(0);
-        log("Browser renders the 3 cards!", "done");
-
-        document.getElementById("spread").innerHTML = data.spread.map(c => `
+        document.getElementById('spread').innerHTML = data.spread.map(c => `
           <div class="card">
             <div class="pos">${c.position}</div>
             <div class="name">${c.name}</div>
             <div class="orient">${c.orientation}</div>
             <p>${c.meaning}</p>
           </div>
-        `).join("");
-
+        `).join('');
       } catch (e) {
-        log("Error: " + e.message, "err");
-        document.getElementById("error").textContent = e.message;
+        log('Error: ' + e.message, 'err');
+        document.getElementById('error').textContent = e.message;
       }
 
       btn.disabled = false;

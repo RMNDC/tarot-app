@@ -5,12 +5,11 @@ RUN apt-get update && apt-get install -y g++ && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY . .
 
-ENV JAVA_HOME=/opt/java/openjdk
+# Compile C++ server
+RUN g++ -o cardpicker cardpicker.cpp
 
-RUN g++ -shared -fPIC -o libcardpicker.so cardpicker.cpp \
-    -I$JAVA_HOME/include \
-    -I$JAVA_HOME/include/linux
-
+# Compile Java server
 RUN javac *.java
 
-CMD ["java", "-Djava.library.path=/app", "-cp", "/app", "TarotServer"]
+# Start C++ server in background, then Java server
+CMD ./cardpicker & java -cp /app TarotServer

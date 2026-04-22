@@ -6,7 +6,7 @@ import java.util.*;
 public class TarotServer {
 
     static final String[] POSITIONS = { "Past", "Present", "Future" };
-    static final Random RNG = new Random();
+    static final String CPP_URL = "http://localhost:9090/pick?count=";
 
     public static void main(String[] args) throws Exception {
         int port = Integer.parseInt(System.getenv().getOrDefault("PORT", "8080"));
@@ -15,7 +15,7 @@ public class TarotServer {
         server.createContext("/draw", TarotServer::serveDraw);
         server.setExecutor(null);
         server.start();
-        System.out.println("Server running on port " + port);
+        System.out.println("Java server running on port " + port);
     }
 
     // Serves index.html to the browser
@@ -27,21 +27,27 @@ public class TarotServer {
         ex.getResponseBody().close();
     }
 
-    // Fetches cards from API, picks 3 via C++, returns JSON
+    // Fetches cards from tarotapi.dev, asks C++ for 3 picks, returns JSON
     static void serveDraw(HttpExchange ex) throws IOException {
+        // Step 1: Java calls external Tarot API
         List<Map<String, String>> cards = CardFetcher.fetchCards();
         if (cards == null) {
             send(ex, 500, "{\"error\":\"Failed to fetch cards.\"}");
             return;
         }
 
-        // C++ picks 3 random indices via JNI
-        int[] picks = new CardPickerNative().pickThree(cards.size());
+        // Step 2: Java calls C++ server via HTTP to get 3 random indices
+        int[] picks = askCppPicker(cards.size());
+        if (picks == null) {
+            send(ex, 500, "{\"error\":\"C++ picker unavailable.\"}");
+            return;
+        }
 
+        // Step 3: Build the JSON spread
         StringBuilder json = new StringBuilder("{\"spread\":[");
         for (int i = 0; i < 3; i++) {
             Map<String, String> card = cards.get(picks[i]);
-            boolean rev = RNG.nextBoolean();
+            boolean rev = new Random().nextBoolean();
             String meaning = rev ? card.get("meaning_rev") : card.get("meaning_up");
             if (meaning == null || meaning.isEmpty()) meaning = "No meaning found.";
             if (i > 0) json.append(",");
@@ -52,6 +58,35 @@ public class TarotServer {
         }
         json.append("]}");
         send(ex, 200, json.toString());
+    }
+
+    // Java calls C++ over HTTP — pure API-based communication
+    static int[] askCppPicker(int count) {
+        try {
+            HttpURLConnection conn = (HttpURLConnection)
+                new URL(CPP_URL + count).openConnection();
+            conn.setConnectTimeout(5000);
+            conn.setReadTimeout(5000);
+            if (conn.getResponseCode() != 200) return null;
+
+            BufferedReader reader = new BufferedReader(
+                new InputStreamReader(conn.getInputStream()));
+            String body = reader.readLine();
+            reader.close();
+            conn.disconnect();
+
+            // Parse {"picks":[a,b,c]}
+            String inner = body.replaceAll(".*\\[|\\].*", "");
+            String[] parts = inner.split(",");
+            return new int[]{
+                Integer.parseInt(parts[0].trim()),
+                Integer.parseInt(parts[1].trim()),
+                Integer.parseInt(parts[2].trim())
+            };
+        } catch (Exception e) {
+            System.err.println("C++ picker error: " + e.getMessage());
+            return null;
+        }
     }
 
     static void send(HttpExchange ex, int code, String body) throws IOException {
