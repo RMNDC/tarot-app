@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Tarot Demo</title>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; padding: 32px 16px; background: #fff9e8; }
+    h1 { font-size: 2rem; margin-bottom: 8px; }
+    button { padding: 12px 28px; font-size: 1rem; border-radius: 999px; border: none; background: #ff8c5a; color: white; cursor: pointer; }
+    button:disabled { opacity: 0.6; }
+    .error { color: red; margin: 12px 0; }
+
+    /* Diagram */
+    .diagram { display: flex; align-items: center; justify-content: center; gap: 0; flex-wrap: wrap; margin: 28px auto; max-width: 860px; }
+    .box { background: #e6f1fb; border: 2px solid #185fa5; border-radius: 14px; width: 130px; padding: 14px 8px; }
+    .box-label { font-size: 0.75rem; font-weight: bold; color: #185fa5; text-transform: uppercase; }
+    .box-sub { font-size: 0.68rem; color: #60708a; margin-top: 4px; }
+    .arrows { display: flex; flex-direction: column; align-items: center; padding: 0 4px; gap: 4px; }
+    .req, .res { font-size: 0.65rem; font-weight: bold; }
+    .req { color: #185fa5; }
+    .res { color: #e46f42; }
+
+    /* Cards */
+    #spread { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; margin-top: 24px; }
+    .card { background: white; border: 1px solid #dbe5f0; border-radius: 16px; padding: 20px; max-width: 220px; text-align: left; }
+    .pos { font-size: 0.75rem; font-weight: bold; text-transform: uppercase; color: #e46f42; }
+    .name { font-size: 1.1rem; font-weight: bold; margin: 6px 0 4px; }
+    .orient { color: #888; font-size: 0.85rem; margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+  <h1>Simple Tarot Demo</h1>
+  <p>Java + C++ — API-based communication</p>
+
+  <!-- Diagram visible on the page -->
+  <div class="diagram">
+    <div class="box">
+      <div class="box-label">Client</div>
+      <div class="box-sub">Browser<br>JavaScript</div>
+    </div>
+    <div class="arrows">
+      <div class="req">&#8594; GET /draw</div>
+      <div class="res">&#8592; JSON spread</div>
+    </div>
+    <div class="box">
+      <div class="box-label">Java Server</div>
+      <div class="box-sub">TarotServer.java<br>HttpServer</div>
+    </div>
+    <div class="arrows">
+      <div class="req">&#8594; JNI call</div>
+      <div class="res">&#8592; int[3]</div>
+    </div>
+    <div class="box">
+      <div class="box-label">C++ Library</div>
+      <div class="box-sub">cardpicker.cpp<br>random shuffle</div>
+    </div>
+    <div class="arrows">
+      <div class="req">&#8594; HTTP GET</div>
+      <div class="res">&#8592; JSON cards</div>
+    </div>
+    <div class="box">
+      <div class="box-label">Tarot API</div>
+      <div class="box-sub">tarotapi.dev<br>external REST</div>
+    </div>
+  </div>
+
+  <button id="btn" onclick="draw()">Draw Cards</button>
+  <p id="error" class="error"></p>
+  <div id="spread"></div>
+
+  <script>
+    async function draw() {
+      const btn = document.getElementById("btn");
+      const error = document.getElementById("error");
+      const spread = document.getElementById("spread");
+
+      btn.disabled = true;
+      error.textContent = "";
+      spread.innerHTML = "";
+
+      try {
+        const res = await fetch("/draw");
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        spread.innerHTML = data.spread.map(c => `
+          <div class="card">
+            <div class="pos">${c.position}</div>
+            <div class="name">${c.name}</div>
+            <div class="orient">${c.orientation}</div>
+            <p>${c.meaning}</p>
+          </div>
+        `).join("");
+      } catch (e) {
+        error.textContent = e.message;
+      } finally {
+        btn.disabled = false;
+      }
+    }
+  </script>
+</body>
+</html>
